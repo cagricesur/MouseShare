@@ -21,6 +21,7 @@ public sealed class MouseShareConnection : IDisposable
     private readonly Task _receiveTask;
 
     public ScreenInfo RemoteScreen { get; private set; } = new(1920, 1080);
+    public ClientPosition Layout { get; private set; } = ClientPosition.Right;
     public bool IsConnected => _client.Connected;
     public event Action<MouseMoveMessage>? OnMouseMove;
     public event Action<MouseDeltaMessage>? OnMouseDelta;
@@ -37,20 +38,20 @@ public sealed class MouseShareConnection : IDisposable
         _receiveTask = Task.Run(() => ReceiveLoopAsync(_cts.Token));
     }
 
-    public static async Task<MouseShareConnection> ConnectAsClientAsync(string host, int port, ScreenInfo localScreen)
+    public static async Task<MouseShareConnection> ConnectAsClientAsync(string host, int port, ScreenInfo localScreen, ClientPosition layout)
     {
         var client = new TcpClient();
         await client.ConnectAsync(host, port);
         var conn = new MouseShareConnection(client);
-        conn.Send(MessageSerializer.SerializeScreenInfo(localScreen));
+        conn.Send(MessageSerializer.SerializeScreenInfo(localScreen, layout));
         return conn;
     }
 
-    public static async Task<MouseShareConnection?> AcceptAsHostAsync(TcpListener listener, ScreenInfo localScreen)
+    public static async Task<MouseShareConnection?> AcceptAsHostAsync(TcpListener listener, ScreenInfo localScreen, ClientPosition layout)
     {
         var client = await listener.AcceptTcpClientAsync();
         var conn = new MouseShareConnection(client);
-        conn.Send(MessageSerializer.SerializeScreenInfo(localScreen));
+        conn.Send(MessageSerializer.SerializeScreenInfo(localScreen, layout));
         return conn;
     }
 
@@ -132,12 +133,13 @@ public sealed class MouseShareConnection : IDisposable
                 OnMouseScroll?.Invoke(new MouseScrollMessage(delta));
                 break;
             case MessageType.EdgeTransition:
-                var (edge, ____) = MessageSerializer.DeserializeEdgeTransition(data);
-                OnEdgeTransition?.Invoke(new EdgeTransitionMessage(edge));
+                var (edge, coord, ____) = MessageSerializer.DeserializeEdgeTransition(data);
+                OnEdgeTransition?.Invoke(new EdgeTransitionMessage(edge, coord));
                 break;
             case MessageType.ScreenInfo:
-                var (screen, _____) = MessageSerializer.DeserializeScreenInfo(data);
+                var (screen, layout, _____) = MessageSerializer.DeserializeScreenInfo(data);
                 RemoteScreen = screen;
+                Layout = layout;
                 break;
         }
     }
@@ -154,4 +156,4 @@ public record MouseMoveMessage(double X, double Y);
 public record MouseDeltaMessage(int Dx, int Dy);
 public record MouseButtonMessage(int Button, bool Pressed);
 public record MouseScrollMessage(int Delta);
-public record EdgeTransitionMessage(Edge Edge);
+public record EdgeTransitionMessage(Edge Edge, double Coord = 0.5);

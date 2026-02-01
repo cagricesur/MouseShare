@@ -1,3 +1,4 @@
+using MS.Core.Models;
 using MouseShare.Client;
 using MouseShare.Host;
 
@@ -5,6 +6,30 @@ namespace MouseShare;
 
 class Program
 {
+    static ClientPosition ParseLayout(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+            if (args[i].Equals("--layout", StringComparison.OrdinalIgnoreCase))
+                return args[i + 1].ToLowerInvariant() switch
+                {
+                    "right" => ClientPosition.Right,
+                    "left" => ClientPosition.Left,
+                    "top" => ClientPosition.Top,
+                    "bottom" => ClientPosition.Bottom,
+                    _ => ClientPosition.Right
+                };
+        return ClientPosition.Right;
+    }
+
+    static int? ParsePort(string[] args, bool preferLast = false)
+    {
+        var candidates = preferLast ? args.Reverse() : args;
+        foreach (var a in candidates)
+            if (int.TryParse(a, out var p) && p > 0 && p < 65536)
+                return p;
+        return null;
+    }
+
     static async Task Main(string[] args)
     {
         Console.WriteLine("=== MouseShare ===");
@@ -28,20 +53,27 @@ class Program
     static void PrintUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  MouseShare --host [port]           Run as HOST (mouse connected here)");
-        Console.WriteLine("  MouseShare --client <host> [port]  Run as CLIENT (connect to host)");
+        Console.WriteLine("  MouseShare --host [--layout right|left|top|bottom] [port]");
+        Console.WriteLine("  MouseShare --client <host> [--layout right|left|top|bottom] [port]");
+        Console.WriteLine();
+        Console.WriteLine("Layout: where the Client screen is relative to Host (default: right)");
+        Console.WriteLine("  right  - Client to the right of Host (push cursor right to switch)");
+        Console.WriteLine("  left   - Client to the left");
+        Console.WriteLine("  top    - Client above Host");
+        Console.WriteLine("  bottom - Client below Host");
         Console.WriteLine();
         Console.WriteLine("Examples:");
-        Console.WriteLine("  On PC with mouse:  MouseShare --host");
-        Console.WriteLine("  On other PC:       MouseShare --client 192.168.1.100");
+        Console.WriteLine("  MouseShare --host --layout right");
+        Console.WriteLine("  MouseShare --client 192.168.1.100 --layout right");
         Console.WriteLine();
         Console.WriteLine("Default port: 38472");
     }
 
     static async Task RunHostAsync(string[] args)
     {
-        var port = args.Length > 1 && int.TryParse(args[1], out var p) ? p : 38472;
-        using var host = new HostMode(port);
+        var layout = ParseLayout(args);
+        var port = ParsePort(args) ?? 38472;
+        using var host = new HostMode(port, layout);
         var exit = new TaskCompletionSource();
         host.OnLog += Console.WriteLine;
 
@@ -59,14 +91,23 @@ class Program
 
     static async Task RunClientAsync(string[] args)
     {
-        if (args.Length < 2)
+        var hostArg = args.Skip(1).FirstOrDefault(a =>
+            !a.Equals("--layout", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("--host", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("--client", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("right", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("left", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("top", StringComparison.OrdinalIgnoreCase) &&
+            !a.Equals("bottom", StringComparison.OrdinalIgnoreCase) &&
+            !int.TryParse(a, out _));
+        if (string.IsNullOrEmpty(hostArg))
         {
             Console.WriteLine("Error: --client requires host IP or hostname.");
             Console.WriteLine("Example: MouseShare --client 192.168.1.100");
             return;
         }
-        var host = args[1];
-        var port = args.Length > 2 && int.TryParse(args[2], out var p) ? p : 38472;
+        var layout = ParseLayout(args);
+        var port = ParsePort(args, preferLast: true) ?? 38472;
 
         using var client = new ClientMode();
         var exit = new TaskCompletionSource();
@@ -81,7 +122,7 @@ class Program
 
         try
         {
-            await client.ConnectAsync(host, port);
+            await client.ConnectAsync(hostArg, port, layout);
         }
         catch (Exception ex)
         {

@@ -27,9 +27,12 @@ public sealed class HostMode : IDisposable
     public event Action? OnClientConnected;
     public event Action? OnClientDisconnected;
 
-    public HostMode(int port = 38472)
+    private readonly ClientPosition _layout;
+
+    public HostMode(int port = 38472, ClientPosition layout = ClientPosition.Right)
     {
         _port = port;
+        _layout = layout;
         _screen = MouseCapture.GetPrimaryScreenInfo();
     }
 
@@ -37,10 +40,10 @@ public sealed class HostMode : IDisposable
     {
         _listener = new TcpListener(IPAddress.Any, _port);
         _listener.Start();
-        OnLog?.Invoke($"Host listening on port {_port}. Screen: {_screen.Width}x{_screen.Height}");
+        OnLog?.Invoke($"Host listening on port {_port}. Screen: {_screen.Width}x{_screen.Height}, Layout: {_layout}");
         OnLog?.Invoke("Waiting for Client to connect...");
 
-        _connection = await MouseShareConnection.AcceptAsHostAsync(_listener, _screen);
+        _connection = await MouseShareConnection.AcceptAsHostAsync(_listener, _screen, _layout);
         if (_connection == null) return;
 
         OnLog?.Invoke($"Client connected. Remote screen: {_connection.RemoteScreen.Width}x{_connection.RemoteScreen.Height}");
@@ -89,9 +92,9 @@ public sealed class HostMode : IDisposable
 
     private void HandleEdgeTransitionFromClient(EdgeTransitionMessage msg)
     {
-        // Client cursor hit its edge (e.g. left) - transition back to Host (right edge)
+        // Client cursor hit its edge - transition back to Host at opposite edge
         _cursorOnHost = true;
-        var pt = CoordinateMapping.MapClientEdgeToHost(msg.Edge, 0.5);
+        var pt = CoordinateMapping.MapClientEdgeToHost(msg.Edge, msg.Coord);
         var (px, py) = pt.ToPixel(_screen);
         MouseCapture.SetCursorPosition(px, py);
         OnLog?.Invoke($"Cursor returned to Host at ({px}, {py})");
@@ -100,6 +103,7 @@ public sealed class HostMode : IDisposable
     private async Task PollLoopAsync(CancellationToken ct)
     {
         var lastSent = (double.NaN, double.NaN);
+        var hostEdge = CoordinateMapping.GetHostTransitionEdge(_layout);
         while (!ct.IsCancellationRequested && _connection?.IsConnected == true)
         {
             try
@@ -110,15 +114,15 @@ public sealed class HostMode : IDisposable
 
                 if (_cursorOnHost)
                 {
-                    var edge = CoordinateMapping.DetectEdge(nx, ny);
-                    if (edge != Edge.None)
+                    if (CoordinateMapping.IsAtEdge(nx, ny, hostEdge))
                     {
                         _cursorOnHost = false;
-                        _connection.Send(MessageSerializer.SerializeEdgeTransition(edge));
-                        var pt = CoordinateMapping.MapEdgeTransition(edge, (edge & (Edge.Left | Edge.Right)) != 0 ? ny : nx);
+                        var coord = (hostEdge & (Edge.Left | Edge.Right)) != 0 ? ny : nx;
+                        _connection.Send(MessageSerializer.SerializeEdgeTransition(hostEdge, coord));
+                        var pt = CoordinateMapping.MapHostEdgeToClient(hostEdge, coord);
                         _connection.Send(MessageSerializer.SerializeMouseMove(pt.X, pt.Y));
                         lastSent = (pt.X, pt.Y);
-                        OnLog?.Invoke($"Cursor moved to Client (edge {edge})");
+                        OnLog?.Invoke($"Cursor moved to Client (layout {_layout}, edge {hostEdge})");
                     }
                     else if (Math.Abs(nx - lastSent.Item1) > 0.001 || Math.Abs(ny - lastSent.Item2) > 0.001)
                     {
@@ -126,16 +130,7 @@ public sealed class HostMode : IDisposable
                         _connection.Send(MessageSerializer.SerializeMouseMove(nx, ny));
                     }
                 }
-                else
-                {
-                    // Cursor on client - we send position when available; RawMouseInput sends deltas for movement
-                    // (position updates help when host has multi-monitor; deltas handle single-monitor clamp)
-                    if (Math.Abs(nx - lastSent.Item1) > 0.001 || Math.Abs(ny - lastSent.Item2) > 0.001)
-                    {
-                        lastSent = (nx, ny);
-                        _connection.Send(MessageSerializer.SerializeMouseMove(nx, ny));
-                    }
-                }
+                // When cursor on client: only RawMouseInput sends deltas - host position is clamped at edge
             }
             catch (Exception ex)
             {

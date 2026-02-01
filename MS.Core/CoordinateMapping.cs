@@ -14,8 +14,46 @@ public static class CoordinateMapping
     public const double EdgeThreshold = 0.01;
 
     /// <summary>
-    /// Detects if the cursor is at a screen edge that would transition to the other PC.
-    /// Host right edge → Client; Client left edge → Host (when cursor was on client side).
+    /// The Host edge that triggers transition to Client (the edge facing the client).
+    /// </summary>
+    public static Edge GetHostTransitionEdge(ClientPosition layout) => layout switch
+    {
+        ClientPosition.Right => Edge.Right,
+        ClientPosition.Left => Edge.Left,
+        ClientPosition.Top => Edge.Top,
+        ClientPosition.Bottom => Edge.Bottom,
+        _ => Edge.Right
+    };
+
+    /// <summary>
+    /// The Client edge that triggers transition back to Host (the edge facing the host).
+    /// </summary>
+    public static Edge GetClientTransitionEdge(ClientPosition layout) => layout switch
+    {
+        ClientPosition.Right => Edge.Left,
+        ClientPosition.Left => Edge.Right,
+        ClientPosition.Top => Edge.Bottom,
+        ClientPosition.Bottom => Edge.Top,
+        _ => Edge.Left
+    };
+
+    /// <summary>
+    /// Detects if the cursor is at the given edge (within threshold).
+    /// </summary>
+    public static bool IsAtEdge(double normalizedX, double normalizedY, Edge edge)
+    {
+        return edge switch
+        {
+            Edge.Left => normalizedX <= EdgeThreshold,
+            Edge.Right => normalizedX >= 1 - EdgeThreshold,
+            Edge.Top => normalizedY <= EdgeThreshold,
+            Edge.Bottom => normalizedY >= 1 - EdgeThreshold,
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// Detects if the cursor is at any screen edge.
     /// </summary>
     public static Edge DetectEdge(double normalizedX, double normalizedY)
     {
@@ -64,11 +102,11 @@ public static class CoordinateMapping
         new(Math.Clamp(hostX, 0, 1), 1);
 
     /// <summary>
-    /// Map edge transition from one screen to the opposite edge of the other.
+    /// When transitioning from Host to Client: map Host edge + coord to initial Client position.
     /// </summary>
-    public static NormalizedPoint MapEdgeTransition(Edge fromEdge, double coord)
+    public static NormalizedPoint MapHostEdgeToClient(Edge hostEdge, double coord)
     {
-        return fromEdge switch
+        return hostEdge switch
         {
             Edge.Right => MapHostRightToClientLeft(coord),
             Edge.Left => MapHostLeftToClientRight(coord),
@@ -79,11 +117,11 @@ public static class CoordinateMapping
     }
 
     /// <summary>
-    /// Map from client edge back to host.
+    /// When transitioning from Client back to Host: map Client edge + coord to initial Host position.
     /// </summary>
-    public static NormalizedPoint MapClientEdgeToHost(Edge fromEdge, double coord)
+    public static NormalizedPoint MapClientEdgeToHost(Edge clientEdge, double coord)
     {
-        return fromEdge switch
+        return clientEdge switch
         {
             Edge.Left => MapClientLeftToHostRight(coord),
             Edge.Right => MapClientRightToHostLeft(coord),

@@ -15,6 +15,7 @@ public sealed class ClientMode : IDisposable
     private MouseShareConnection? _connection;
     private bool _cursorOnClient;
     private double _lastX, _lastY;
+    private Edge _clientTransitionEdge;
     private const int PollIntervalMs = 8;
 
     public event Action<string>? OnLog;
@@ -25,15 +26,18 @@ public sealed class ClientMode : IDisposable
         _screen = MouseCapture.GetPrimaryScreenInfo();
     }
 
-    public async Task ConnectAsync(string host, int port = 38472)
+    public async Task ConnectAsync(string host, int port = 38472, ClientPosition layout = ClientPosition.Right)
     {
-        _connection = await MouseShareConnection.ConnectAsClientAsync(host, port, _screen);
-        OnLog?.Invoke($"Connected to Host. Local screen: {_screen.Width}x{_screen.Height}, Remote: {_connection.RemoteScreen.Width}x{_connection.RemoteScreen.Height}");
+        _connection = await MouseShareConnection.ConnectAsClientAsync(host, port, _screen, layout);
+        OnLog?.Invoke($"Connected to Host. Local: {_screen.Width}x{_screen.Height}, Remote: {_connection.RemoteScreen.Width}x{_connection.RemoteScreen.Height}, Layout: {_connection.Layout}");
 
         _connection.OnMouseMove += HandleMouseMove;
         _connection.OnMouseDelta += HandleMouseDelta;
         _connection.OnMouseButton += HandleMouseButton;
         _connection.OnMouseScroll += HandleMouseScroll;
+        _cursorOnClient = false;
+        _clientTransitionEdge = CoordinateMapping.GetClientTransitionEdge(layout);
+
         _connection.OnEdgeTransition += HandleEdgeTransition;
         _connection.OnDisconnected += () =>
         {
@@ -41,14 +45,14 @@ public sealed class ClientMode : IDisposable
             OnDisconnected?.Invoke();
             OnLog?.Invoke("Disconnected from Host.");
         };
-
-        _cursorOnClient = false;
     }
 
     private void HandleEdgeTransition(EdgeTransitionMessage msg)
     {
         _cursorOnClient = true;
-        var pt = CoordinateMapping.MapEdgeTransition(msg.Edge, 0.5);
+        var pt = CoordinateMapping.MapHostEdgeToClient(msg.Edge, msg.Coord);
+        _lastX = pt.X;
+        _lastY = pt.Y;
         MoveCursorTo(pt.X, pt.Y);
     }
 
@@ -59,12 +63,12 @@ public sealed class ClientMode : IDisposable
         _lastY = msg.Y;
         MoveCursorTo(msg.X, msg.Y);
 
-        var edge = CoordinateMapping.DetectEdge(msg.X, msg.Y);
-        if (edge != Edge.None)
+        if (CoordinateMapping.IsAtEdge(msg.X, msg.Y, _clientTransitionEdge))
         {
             _cursorOnClient = false;
-            _connection?.Send(MessageSerializer.SerializeEdgeTransition(edge));
-            OnLog?.Invoke($"Cursor returned to Host (edge {edge})");
+            var coord = (_clientTransitionEdge & (Edge.Left | Edge.Right)) != 0 ? msg.Y : msg.X;
+            _connection?.Send(MessageSerializer.SerializeEdgeTransition(_clientTransitionEdge, coord));
+            OnLog?.Invoke($"Cursor returned to Host (edge {_clientTransitionEdge})");
         }
     }
 
@@ -78,12 +82,12 @@ public sealed class ClientMode : IDisposable
         _lastY = (double)py / _screen.Height;
         MouseCapture.SetCursorPosition(px, py);
 
-        var edge = CoordinateMapping.DetectEdge(_lastX, _lastY);
-        if (edge != Edge.None)
+        if (CoordinateMapping.IsAtEdge(_lastX, _lastY, _clientTransitionEdge))
         {
             _cursorOnClient = false;
-            _connection?.Send(MessageSerializer.SerializeEdgeTransition(edge));
-            OnLog?.Invoke($"Cursor returned to Host (edge {edge})");
+            var coord = (_clientTransitionEdge & (Edge.Left | Edge.Right)) != 0 ? _lastY : _lastX;
+            _connection?.Send(MessageSerializer.SerializeEdgeTransition(_clientTransitionEdge, coord));
+            OnLog?.Invoke($"Cursor returned to Host (edge {_clientTransitionEdge})");
         }
     }
 

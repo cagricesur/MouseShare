@@ -92,38 +92,42 @@ public static class MessageSerializer
         return (delta, 5);
     }
 
-    public static byte[] SerializeEdgeTransition(Edge edge)
+    public static byte[] SerializeEdgeTransition(Edge edge, double coord = 0.5)
     {
-        var buffer = new byte[1 + 4];
+        var buffer = new byte[1 + 4 + 8];
         buffer[0] = (byte)MessageType.EdgeTransition;
         BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(1), (int)edge);
+        BinaryPrimitives.WriteDoubleBigEndian(buffer.AsSpan(5), coord);
         return buffer;
     }
 
-    public static (Edge Edge, int Consumed) DeserializeEdgeTransition(ReadOnlySpan<byte> data)
+    public static (Edge Edge, double Coord, int Consumed) DeserializeEdgeTransition(ReadOnlySpan<byte> data)
     {
         if (data.Length < 5) return default;
         var edge = (Edge)BinaryPrimitives.ReadInt32BigEndian(data[1..]);
-        return (edge, 5);
+        var coord = data.Length >= 13 ? BinaryPrimitives.ReadDoubleBigEndian(data[5..]) : 0.5;
+        return (edge, coord, data.Length >= 13 ? 13 : 5);
     }
 
     public static byte[] SerializeKeepAlive() => [(byte)MessageType.KeepAlive];
 
-    public static byte[] SerializeScreenInfo(ScreenInfo screen)
+    public static byte[] SerializeScreenInfo(ScreenInfo screen, ClientPosition layout = ClientPosition.Right)
     {
-        var buffer = new byte[1 + 4 + 4];
+        var buffer = new byte[1 + 4 + 4 + 1];
         buffer[0] = (byte)MessageType.ScreenInfo;
         BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(1), screen.Width);
         BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(5), screen.Height);
+        buffer[9] = (byte)layout;
         return buffer;
     }
 
-    public static (ScreenInfo Screen, int Consumed) DeserializeScreenInfo(ReadOnlySpan<byte> data)
+    public static (ScreenInfo Screen, ClientPosition Layout, int Consumed) DeserializeScreenInfo(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 9) return default;
+        if (data.Length < 10) return default;
         var width = BinaryPrimitives.ReadInt32BigEndian(data[1..]);
         var height = BinaryPrimitives.ReadInt32BigEndian(data[5..]);
-        return (new ScreenInfo(width, height), 9);
+        var layout = (ClientPosition)Math.Clamp((int)data[9], 0, 3);
+        return (new ScreenInfo(width, height), layout, 10);
     }
 
     public static MessageType GetMessageType(ReadOnlySpan<byte> data) =>

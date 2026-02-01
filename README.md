@@ -1,13 +1,13 @@
 # MouseShare
 
-Share one Bluetooth mouse between two PCs. When the cursor hits the edge of one screen, it transitions to the other PC's screen. Works with different resolutions.
+Share one Bluetooth mouse between two PCs. When the cursor hits the edge of the HOST screen, it **transitions to the CLIENT** and the mouse fully controls the client cursor across its screen. Move to the opposite edge on the client to switch back. Works with different resolutions.
 
 ## Architecture
 
-- **HOST**: The PC where the physical Bluetooth mouse is connected. Runs `MouseShare --host`.
-- **CLIENT**: The other PC. Runs `MouseShare --client <host-ip>`.
-- Both PCs exchange screen dimensions and use normalized coordinates (0-1) for resolution-independent mapping.
-- Edge detection: Move cursor to screen edge to "push" it to the other PC.
+- **HOST**: The PC where the physical Bluetooth mouse is connected.
+- **CLIENT**: The other PC that receives mouse control.
+- When you push the cursor to the host edge (in the direction of the client), it switches to the client and the mouse movements control the client cursor anywhere on its screen.
+- Use `--layout` to specify where the client screen is: right, left, top, or bottom of the host.
 
 ## Usage
 
@@ -15,17 +15,32 @@ Share one Bluetooth mouse between two PCs. When the cursor hits the edge of one 
 
 ```bash
 MouseShare --host
-# Optional: specify port (default 38472)
-MouseShare --host 38472
+# With layout (where client is relative to host)
+MouseShare --host --layout right
+MouseShare --host --layout left
+MouseShare --host --layout top
+MouseShare --host --layout bottom
+# Optional port
+MouseShare --host --layout right 38472
 ```
 
 ### On the other PC (CLIENT)
 
 ```bash
 MouseShare --client 192.168.1.100
-# Optional: specify port
-MouseShare --client 192.168.1.100 38472
+# Layout must match host
+MouseShare --client 192.168.1.100 --layout right
+MouseShare --client 192.168.1.100 --layout left 38472
 ```
+
+### Layout options
+
+| Layout  | Client position     | Host edge to push | Client edge to return |
+|---------|---------------------|-------------------|------------------------|
+| `right` | To the right of host| Right edge        | Left edge              |
+| `left`  | To the left         | Left edge         | Right edge             |
+| `top`   | Above host          | Top edge          | Bottom edge            |
+| `bottom`| Below host          | Bottom edge       | Top edge               |
 
 ## Requirements
 
@@ -43,15 +58,9 @@ dotnet build
 ## How it works
 
 1. **HOST** starts a TCP listener and waits for the **CLIENT** to connect.
-2. Both exchange screen dimensions (width × height).
-3. HOST polls mouse position and sends normalized coordinates to CLIENT.
-4. When cursor hits an edge on HOST (e.g. right edge), HOST sends an edge transition. CLIENT shows the cursor at its corresponding edge (left).
-5. Raw Input captures relative mouse movement when the cursor is on the remote screen (handles single-monitor clamping).
+2. Both exchange screen dimensions and layout.
+3. HOST polls mouse position and sends it to CLIENT while the cursor is on the host.
+4. When the cursor hits the **layout-specific edge** on HOST (e.g. right edge when `--layout right`), the cursor transitions to CLIENT at the opposite edge.
+5. From then on, **Raw Input** sends relative mouse deltas to the client so the mouse fully controls the client cursor across its entire screen.
 6. Mouse clicks and scroll are forwarded when the cursor is on the remote PC.
-7. Moving to the edge on CLIENT transitions back to HOST.
-
-## Screen layout
-
-- **Right edge of HOST** → **Left edge of CLIENT** (client to the right of host)
-- **Left edge of HOST** → **Right edge of CLIENT** (client to the left)
-- Same logic for top/bottom edges.
+7. Pushing the cursor to the **opposite edge** on CLIENT switches control back to HOST.
