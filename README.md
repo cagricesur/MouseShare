@@ -7,7 +7,7 @@ Share one Bluetooth mouse between two PCs. When the cursor hits the edge of the 
 - **HOST**: The PC where the physical Bluetooth mouse is connected.
 - **CLIENT**: The other PC that receives mouse control.
 - When you push the cursor to the host edge (in the direction of the client), it switches to the client and the mouse movements control the client cursor anywhere on its screen.
-- Use `--layout` to specify where the client screen is: right, left, top, or bottom of the host.
+- Use `--layout` to specify where the client screen is: left (default), right, top, or bottom of the host.
 
 ## Usage
 
@@ -16,12 +16,12 @@ Share one Bluetooth mouse between two PCs. When the cursor hits the edge of the 
 ```bash
 MouseShare --host
 # With layout (where client is relative to host)
-MouseShare --host --layout right
+MouseShare --host --layout left
 MouseShare --host --layout left
 MouseShare --host --layout top
 MouseShare --host --layout bottom
 # Optional port
-MouseShare --host --layout right 38472
+MouseShare --host --layout left 38472
 ```
 
 ### On the other PC (CLIENT)
@@ -29,7 +29,7 @@ MouseShare --host --layout right 38472
 ```bash
 MouseShare --client 192.168.1.100
 # Layout must match host
-MouseShare --client 192.168.1.100 --layout right
+MouseShare --client 192.168.1.100 --layout left
 MouseShare --client 192.168.1.100 --layout left 38472
 ```
 
@@ -37,8 +37,8 @@ MouseShare --client 192.168.1.100 --layout left 38472
 
 | Layout  | Client position     | Host edge to push | Client edge to return |
 |---------|---------------------|-------------------|------------------------|
+| `left`  | To the left (default)| Left edge        | Right edge             |
 | `right` | To the right of host| Right edge        | Left edge              |
-| `left`  | To the left         | Left edge         | Right edge             |
 | `top`   | Above host          | Top edge          | Bottom edge            |
 | `bottom`| Below host          | Bottom edge       | Top edge               |
 

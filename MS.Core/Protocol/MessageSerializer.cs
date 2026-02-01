@@ -111,7 +111,7 @@ public static class MessageSerializer
 
     public static byte[] SerializeKeepAlive() => [(byte)MessageType.KeepAlive];
 
-    public static byte[] SerializeScreenInfo(ScreenInfo screen, ClientPosition layout = ClientPosition.Right)
+    public static byte[] SerializeScreenInfo(ScreenInfo screen, ClientPosition layout = ClientPosition.Left)
     {
         var buffer = new byte[1 + 4 + 4 + 1];
         buffer[0] = (byte)MessageType.ScreenInfo;

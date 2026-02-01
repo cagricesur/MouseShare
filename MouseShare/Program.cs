@@ -16,9 +16,9 @@ class Program
                     "left" => ClientPosition.Left,
                     "top" => ClientPosition.Top,
                     "bottom" => ClientPosition.Bottom,
-                    _ => ClientPosition.Right
+                    _ => ClientPosition.Left
                 };
-        return ClientPosition.Right;
+        return ClientPosition.Left;
     }
 
     static int? ParsePort(string[] args, bool preferLast = false)
@@ -56,15 +56,15 @@ class Program
         Console.WriteLine("  MouseShare --host [--layout right|left|top|bottom] [port]");
         Console.WriteLine("  MouseShare --client <host> [--layout right|left|top|bottom] [port]");
         Console.WriteLine();
-        Console.WriteLine("Layout: where the Client screen is relative to Host (default: right)");
-        Console.WriteLine("  right  - Client to the right of Host (push cursor right to switch)");
-        Console.WriteLine("  left   - Client to the left");
+        Console.WriteLine("Layout: where the Client screen is relative to Host (default: left)");
+        Console.WriteLine("  left   - Client to the left of Host (push cursor left to switch)");
+        Console.WriteLine("  right  - Client to the right of Host");
         Console.WriteLine("  top    - Client above Host");
         Console.WriteLine("  bottom - Client below Host");
         Console.WriteLine();
         Console.WriteLine("Examples:");
-        Console.WriteLine("  MouseShare --host --layout right");
-        Console.WriteLine("  MouseShare --client 192.168.1.100 --layout right");
+        Console.WriteLine("  MouseShare --host --layout left");
+        Console.WriteLine("  MouseShare --client 192.168.1.100 --layout left");
         Console.WriteLine();
         Console.WriteLine("Default port: 38472");
     }

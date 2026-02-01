@@ -27,7 +27,7 @@ public sealed class ClientMode : IDisposable
         _screen = MouseCapture.GetPrimaryScreenInfo();
     }
 
-    public async Task ConnectAsync(string host, int port = 38472, ClientPosition layout = ClientPosition.Right)
+    public async Task ConnectAsync(string host, int port = 38472, ClientPosition layout = ClientPosition.Left)
     {
         _connection = await MouseShareConnection.ConnectAsClientAsync(host, port, _screen, layout);
         OnLog?.Invoke($"Connected to Host. Local: {_screen.Width}x{_screen.Height}, Remote: {_connection.RemoteScreen.Width}x{_connection.RemoteScreen.Height}, Layout: {_connection.Layout}");

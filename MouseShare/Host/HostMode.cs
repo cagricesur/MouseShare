@@ -30,7 +30,7 @@ public sealed class HostMode : IDisposable
 
     private readonly ClientPosition _layout;
 
-    public HostMode(int port = 38472, ClientPosition layout = ClientPosition.Right)
+    public HostMode(int port = 38472, ClientPosition layout = ClientPosition.Left)
     {
         _port = port;
         _layout = layout;

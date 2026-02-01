@@ -21,7 +21,7 @@ public sealed class MouseShareConnection : IDisposable
     private readonly Task _receiveTask;
 
     public ScreenInfo RemoteScreen { get; private set; } = new(1920, 1080);
-    public ClientPosition Layout { get; private set; } = ClientPosition.Right;
+    public ClientPosition Layout { get; private set; } = ClientPosition.Left;
     public bool IsConnected => _client.Connected;
     public event Action<MouseMoveMessage>? OnMouseMove;
     public event Action<MouseDeltaMessage>? OnMouseDelta;
