@@ -76,14 +76,21 @@ public sealed class RawMouseInput : IDisposable
 
     private delegate nint WndProcDelegate(nint hwnd, uint msg, nint wParam, nint lParam);
 
+    // RAWINPUTHEADER: 24 bytes on 64-bit (dwType 4 + dwSize 4 + hDevice 8 + wParam 8)
+    // RAWMOUSE: usFlags 2, union 4, ulRawButtons 4, lLastX 4, lLastY 4, ulExtraInfo 4
+    // lLastX at headerSize+12, lLastY at headerSize+16
+    private static readonly int s_headerSize = IntPtr.Size == 8 ? 24 : 16;
+    private static readonly int s_lastXOffset = s_headerSize + 12;
+    private static readonly int s_lastYOffset = s_headerSize + 16;
+
     private nint WndProc(nint hwnd, uint msg, nint wParam, nint lParam)
     {
         if (msg == WM_INPUT)
         {
             var buffer = new byte[64];
             var size = (uint)buffer.Length;
-            var result = GetRawInputData(lParam, RID_INPUT, buffer, ref size, 16);
-            if (result > 0 && size >= 40)
+            var result = GetRawInputData(lParam, RID_INPUT, buffer, ref size, s_headerSize);
+            if (result > 0 && size >= s_lastYOffset + 4)
                 ParseRawInput(buffer);
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -91,11 +98,11 @@ public sealed class RawMouseInput : IDisposable
 
     private void ParseRawInput(byte[] buffer)
     {
-        if (buffer.Length < 40) return;
+        if (buffer.Length < s_lastYOffset + 4) return;
         if (BitConverter.ToInt32(buffer, 0) != RIM_TYPEMOUSE) return;
-        if ((BitConverter.ToInt32(buffer, 24) & 0x01) != MOUSE_MOVE_RELATIVE) return;
-        var lastX = BitConverter.ToInt32(buffer, 28);
-        var lastY = BitConverter.ToInt32(buffer, 32);
+        if ((BitConverter.ToUInt16(buffer, s_headerSize) & 0x01) != MOUSE_MOVE_RELATIVE) return; // usFlags
+        var lastX = BitConverter.ToInt32(buffer, s_lastXOffset);
+        var lastY = BitConverter.ToInt32(buffer, s_lastYOffset);
         _onDelta(lastX, lastY);
     }
 
