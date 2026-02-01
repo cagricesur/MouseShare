@@ -21,6 +21,7 @@ public sealed class HostMode : IDisposable
     private MouseHook? _mouseHook;
     private RawMouseInput? _rawMouse;
     private volatile bool _cursorOnHost = true;
+    private bool _hostMustLeaveEdgeFirst; // debounce: must move away from edge before transitioning to client
     private const int PollIntervalMs = 8; // ~120 Hz
 
     public event Action<string>? OnLog;
@@ -94,6 +95,7 @@ public sealed class HostMode : IDisposable
     {
         // Client cursor hit its edge - transition back to Host at opposite edge
         _cursorOnHost = true;
+        _hostMustLeaveEdgeFirst = true; // cursor at edge - must move away before we allow transition to client
         var pt = CoordinateMapping.MapClientEdgeToHost(msg.Edge, msg.Coord);
         var (px, py) = pt.ToPixel(_screen);
         MouseCapture.SetCursorPosition(px, py);
@@ -114,7 +116,12 @@ public sealed class HostMode : IDisposable
 
                 if (_cursorOnHost)
                 {
-                    if (CoordinateMapping.IsAtEdge(nx, ny, hostEdge))
+                    if (_hostMustLeaveEdgeFirst)
+                    {
+                        if (CoordinateMapping.HasLeftEdge(nx, ny, hostEdge))
+                            _hostMustLeaveEdgeFirst = false;
+                    }
+                    else if (CoordinateMapping.IsAtEdge(nx, ny, hostEdge))
                     {
                         _cursorOnHost = false;
                         var coord = (hostEdge & (Edge.Left | Edge.Right)) != 0 ? ny : nx;
@@ -126,9 +133,10 @@ public sealed class HostMode : IDisposable
                         // (when clamped at edge, Windows doesn't report horizontal deltas)
                         var (cx, cy) = (_screen.Width / 2, _screen.Height / 2);
                         MouseCapture.SetCursorPosition(cx, cy);
+                        _hostMustLeaveEdgeFirst = true; // will be cleared when cursor returns and moves away
                         OnLog?.Invoke($"Cursor moved to Client (layout {_layout}, edge {hostEdge})");
                     }
-                    else if (Math.Abs(nx - lastSent.Item1) > 0.001 || Math.Abs(ny - lastSent.Item2) > 0.001)
+                    if (!_hostMustLeaveEdgeFirst && (Math.Abs(nx - lastSent.Item1) > 0.001 || Math.Abs(ny - lastSent.Item2) > 0.001))
                     {
                         lastSent = (nx, ny);
                         _connection.Send(MessageSerializer.SerializeMouseMove(nx, ny));

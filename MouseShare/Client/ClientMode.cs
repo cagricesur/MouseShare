@@ -16,6 +16,7 @@ public sealed class ClientMode : IDisposable
     private bool _cursorOnClient;
     private double _lastX, _lastY;
     private Edge _clientTransitionEdge;
+    private bool _mustLeaveEdgeFirst; // debounce: must move away from edge before transitioning back
     private const int PollIntervalMs = 8;
 
     public event Action<string>? OnLog;
@@ -50,6 +51,7 @@ public sealed class ClientMode : IDisposable
     private void HandleEdgeTransition(EdgeTransitionMessage msg)
     {
         _cursorOnClient = true;
+        _mustLeaveEdgeFirst = true; // cursor arrives at edge - must move away before we allow transition back
         var pt = CoordinateMapping.MapHostEdgeToClient(msg.Edge, msg.Coord);
         _lastX = pt.X;
         _lastY = pt.Y;
@@ -63,6 +65,12 @@ public sealed class ClientMode : IDisposable
         _lastY = msg.Y;
         MoveCursorTo(msg.X, msg.Y);
 
+        if (_mustLeaveEdgeFirst)
+        {
+            if (CoordinateMapping.HasLeftEdge(msg.X, msg.Y, _clientTransitionEdge))
+                _mustLeaveEdgeFirst = false;
+            return;
+        }
         if (CoordinateMapping.IsAtEdge(msg.X, msg.Y, _clientTransitionEdge))
         {
             _cursorOnClient = false;
@@ -82,6 +90,12 @@ public sealed class ClientMode : IDisposable
         _lastY = (double)py / _screen.Height;
         MouseCapture.SetCursorPosition(px, py);
 
+        if (_mustLeaveEdgeFirst)
+        {
+            if (CoordinateMapping.HasLeftEdge(_lastX, _lastY, _clientTransitionEdge))
+                _mustLeaveEdgeFirst = false;
+            return;
+        }
         if (CoordinateMapping.IsAtEdge(_lastX, _lastY, _clientTransitionEdge))
         {
             _cursorOnClient = false;

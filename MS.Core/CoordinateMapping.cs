@@ -14,6 +14,27 @@ public static class CoordinateMapping
     public const double EdgeThreshold = 0.01;
 
     /// <summary>
+    /// Min distance from edge before we allow transition-back. Prevents immediate back-and-forth
+    /// when cursor appears at edge after transition (and host warp to center).
+    /// </summary>
+    public const double LeaveEdgeThreshold = 0.05;
+
+    /// <summary>
+    /// True when cursor has moved away from the given edge (past LeaveEdgeThreshold).
+    /// </summary>
+    public static bool HasLeftEdge(double normalizedX, double normalizedY, Edge edge)
+    {
+        return edge switch
+        {
+            Edge.Left => normalizedX > LeaveEdgeThreshold,
+            Edge.Right => normalizedX < 1 - LeaveEdgeThreshold,
+            Edge.Top => normalizedY > LeaveEdgeThreshold,
+            Edge.Bottom => normalizedY < 1 - LeaveEdgeThreshold,
+            _ => true
+        };
+    }
+
+    /// <summary>
     /// The Host edge that triggers transition to Client (the edge facing the client).
     /// </summary>
     public static Edge GetHostTransitionEdge(ClientPosition layout) => layout switch
