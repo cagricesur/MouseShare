@@ -122,6 +122,10 @@ public sealed class HostMode : IDisposable
                         var pt = CoordinateMapping.MapHostEdgeToClient(hostEdge, coord);
                         _connection.Send(MessageSerializer.SerializeMouseMove(pt.X, pt.Y));
                         lastSent = (pt.X, pt.Y);
+                        // Warp host cursor to center so Raw Input captures full 2D movement
+                        // (when clamped at edge, Windows doesn't report horizontal deltas)
+                        var (cx, cy) = (_screen.Width / 2, _screen.Height / 2);
+                        MouseCapture.SetCursorPosition(cx, cy);
                         OnLog?.Invoke($"Cursor moved to Client (layout {_layout}, edge {hostEdge})");
                     }
                     else if (Math.Abs(nx - lastSent.Item1) > 0.001 || Math.Abs(ny - lastSent.Item2) > 0.001)
