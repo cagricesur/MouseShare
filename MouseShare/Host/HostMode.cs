@@ -58,8 +58,7 @@ public sealed class HostMode : IDisposable
             OnLog?.Invoke("Client disconnected.");
         };
 
-        _mouseHook = new MouseHook();
-        _mouseHook.SetCallbacks(
+        _mouseHook = new MouseHook(
             (btn, pressed) =>
             {
                 if (!_cursorOnHost && _connection?.IsConnected == true)
