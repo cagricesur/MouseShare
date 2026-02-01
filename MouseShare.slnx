@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MS.Core/MS.Core.csproj" />
+  <Project Path="MouseShare/MouseShare.csproj" />
+</Solution>
